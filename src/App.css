@@ -3,10 +3,7 @@
 
 @custom-variant dark (&:is(.dark *));
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  @apply flex min-h-screen items-center justify-center bg-background text-foreground;
 }
 
 .logo {

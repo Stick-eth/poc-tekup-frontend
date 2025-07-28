@@ -1,91 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import { ethers } from 'ethers';
-import { useMetaMask } from './hooks/useMetaMask';
-import { getNonce, login as loginApi } from './services/auth';
-import axios from 'axios';
+import React, { useEffect, useState } from 'react'
+import axios from 'axios'
+import Login from './pages/Login'
+import ProfilePage from './pages/Profile'
 
 export default function App() {
-  const { address, error, connect, isMetaMaskInstalled } = useMetaMask();
-  const [token, setToken]       = useState<string | null>(null);
-  const [loginError, setLoginError] = useState<string | null>(null);
-  const [loading, setLoading]   = useState(false);
+  const [token, setToken] = useState<string | null>(null)
+  const [route, setRoute] = useState(window.location.pathname)
 
   useEffect(() => {
-    const saved = localStorage.getItem('access_token');
+    const saved = localStorage.getItem('access_token')
     if (saved) {
-      setToken(saved);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${saved}`;
+      setToken(saved)
+      axios.defaults.headers.common['Authorization'] = `Bearer ${saved}`
     }
-  }, []);
+    const onPop = () => setRoute(window.location.pathname)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
-  const handleLogin = async () => {
-    if (!address) return;
-    setLoading(true);
-    setLoginError(null);
+  const navigate = (path: string) => {
+    window.history.pushState({}, '', path)
+    setRoute(path)
+  }
 
-    try {
-      // 1. Récupérer le challenge (nonce)
-      const nonce = await getNonce(address);
+  const handleLoginSuccess = (tok: string) => {
+    setToken(tok)
+    navigate('/')
+  }
 
-      // 2. Signer la nonce avec MetaMask
-      // nouveau (ethers v6)
-      const provider = new ethers.BrowserProvider(window.ethereum);
-      const signer   = await provider.getSigner();
-      const signature = await signer.signMessage(nonce);
+  const handleLogout = () => {
+    localStorage.removeItem('access_token')
+    delete axios.defaults.headers.common['Authorization']
+    setToken(null)
+    navigate('/login')
+  }
 
-      // 3. Envoyer la signature au backend pour obtenir le JWT
-      const accessToken = await loginApi(address, signature);
-      localStorage.setItem('access_token', accessToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-      setToken(accessToken);
-    } catch (err: any) {
-      setLoginError(err.response?.data?.message || err.message);
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (!token && route !== '/login') {
+      navigate('/login')
     }
-  };
+  }, [token, route])
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl mb-4">Connexion Web3</h1>
-
-      { !isMetaMaskInstalled() && (
-        <p className="text-red-600">
-          MetaMask non installé ! <a href="https://metamask.io/" target="_blank" rel="noopener">Installer MetaMask</a>
-        </p>
-      )}
-
-      { error && <p className="text-red-600">{error}</p> }
-
-      {!address ? (
-        <button
-          onClick={connect}
-          className="px-4 py-2 bg-blue-600 text-white rounded"
-        >
-          Se connecter avec MetaMask
-        </button>
+    <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+      {!token ? (
+        <Login onSuccess={handleLoginSuccess} />
       ) : (
-        <p>Adresse détectée : <code>{address}</code></p>
-      )}
-
-      {address && !token && (
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="mt-4 px-4 py-2 bg-green-600 text-white rounded"
-        >
-          {loading ? 'Connexion…' : 'Se connecter au backend'}
-        </button>
-      )}
-
-      {loginError && <p className="text-red-600 mt-2">{loginError}</p>}
-
-      {token && (
-        <div className="mt-4">
-          <p className="text-green-700">Authentifié !</p>
-          <p>Token : <code>{token.slice(0, 20)}…</code></p>
-        </div>
+        <ProfilePage onLogout={handleLogout} />
       )}
     </div>
-  );
+  )
 }
